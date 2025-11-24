@@ -90,6 +90,6 @@ Configure as Regras de Segurança (Rules) no Firebase conforme abaixo:
 
 👤 Autor
 
-Luide Estudante de Gestão de TI
+Luide
 
 Este projeto é para fins educacionais.
