@@ -12,7 +12,7 @@ O sistema impede que usuários peguem chaves ilimitadas através de um controle 
 
 Autenticação Segura: Login e Cadastro via E-mail/Senha (Firebase Auth).
 
-Verificação de E-mail: Bloqueio de usuários não verificados (Exceto Admin).
+Verificação de E-mail: Bloqueio total de usuários não verificados (Exceto Admin).
 
 Sistema de Créditos: O usuário gasta 1 crédito por tentativa. Se não tiver, não joga.
 
@@ -40,7 +40,7 @@ Segurança: Regras de Banco de Dados (Firebase Security Rules) para validação 
 
 Por segurança, o botão de administração é invisível.
 
-Faça login com a conta de Administrador.
+Faça login com a conta de Administrador (luidecarx@gmail.com).
 
 Role a página até o rodapé (créditos).
 
@@ -60,28 +60,32 @@ Ative o Authentication (Email/Senha).
 
 Ative o Realtime Database.
 
-Substitua as chaves firebaseConfig no arquivo index.html pelas do seu projeto.
+No arquivo index.html:
 
-Configure as Regras de Segurança (Rules) no Firebase conforme abaixo:
+Substitua as chaves firebaseConfig pelas do seu projeto.
+
+Altere a constante ADMIN_EMAIL para o seu e-mail de administrador.
+
+Configure as Regras de Segurança (Rules) no Firebase conforme abaixo (Substitua o email pelo seu):
 
 {
   "rules": {
     "users": {
-      ".read": "auth.token.email === 'SEU_EMAIL_ADMIN'",
+      ".read": "auth.token.email === 'luidecarx@gmail.com'",
       ".indexOn": ["email"],
       "$uid": {
-        ".read": "$uid === auth.uid || auth.token.email === 'SEU_EMAIL_ADMIN'",
-        ".write": "$uid === auth.uid || auth.token.email === 'SEU_EMAIL_ADMIN'"
+        ".read": "$uid === auth.uid || auth.token.email === 'luidecarx@gmail.com'",
+        ".write": "$uid === auth.uid || auth.token.email === 'luidecarx@gmail.com'"
       }
     },
     "keys": {
       ".read": "auth != null",
       "$key_id": {
-        ".write": "auth.token.email === 'SEU_EMAIL_ADMIN' || !newData.exists()"
+        ".write": "auth.token.email === 'luidecarx@gmail.com' || !newData.exists()"
       }
     },
     "logs": {
-      ".read": "auth.token.email === 'SEU_EMAIL_ADMIN'",
+      ".read": "auth.token.email === 'luidecarx@gmail.com'",
       ".write": "auth != null"
     }
   }
