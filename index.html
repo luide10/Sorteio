@@ -233,7 +233,6 @@
             appId: "1:649756499724:web:3c1fb49b6b9b3cc2193329"
         };
 
-        // E-MAIL DO CHEFE ATUALIZADO (Porteiro do Frontend)
         const ADMIN_EMAIL = "luidecarx@gmail.com"; 
 
         firebase.initializeApp(firebaseConfig);
@@ -460,12 +459,28 @@
 
         function closeAdmin() { document.getElementById('admin-panel').style.display = 'none'; }
 
-        function addKeyToDB() {
-            const code = document.getElementById('new-key-input').value;
+        // --- FUNÇÃO ATUALIZADA: CHECA DUPLICIDADE ANTES DE SALVAR ---
+        async function addKeyToDB() {
+            const code = document.getElementById('new-key-input').value.trim();
             if(!code) return alert("Digite a key");
-            db.ref('keys').push({ codigo: code })
-                .then(() => { alert("Key Salva!"); document.getElementById('new-key-input').value = ''; })
-                .catch(err => { alert("⛔ Erro de Permissão."); });
+            
+            try {
+                // VERIFICA SE A KEY JÁ EXISTE (Precisa da regra .indexOn: ["codigo"])
+                const snapshot = await db.ref('keys').orderByChild('codigo').equalTo(code).once('value');
+                
+                if (snapshot.exists()) {
+                    return alert("⛔ Erro: Essa Key JÁ ESTÁ cadastrada no sistema!");
+                }
+
+                // Se não existe, salva
+                await db.ref('keys').push({ codigo: code });
+                alert("✅ Key Salva com sucesso!");
+                document.getElementById('new-key-input').value = '';
+
+            } catch (err) {
+                console.error(err);
+                alert("⛔ Erro: Verifique se você é Admin e se as regras do Firebase estão atualizadas.");
+            }
         }
 
         async function giveCredits() {
