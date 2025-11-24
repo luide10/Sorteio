@@ -2,6 +2,14 @@
 
 Este documento registra a evolução do projeto, desde a concepção inicial até a versão estável atual.
 
+[V12.0] - Controle de Estoque (Anti-Duplicidade) 📦
+
+Verificação de Existência: Implementada lógica no Painel Admin que consulta o banco de dados antes de salvar uma nova key.
+
+Índice de Banco de Dados: Atualização nas regras do Firebase (.indexOn: ["codigo"]) para permitir buscas eficientes e impedir cadastros duplicados.
+
+Tratamento de Erro: Alerta visual específico caso o administrador tente inserir uma chave que já consta no sistema.
+
 [V11.0] - Segurança Definitiva (Current) 🛡️
 
 Hardcoded Admin: Retorno da constante de e-mail do administrador no código (const ADMIN_EMAIL) para garantir acesso imediato ao painel, sem depender de leitura de banco de dados na entrada.
