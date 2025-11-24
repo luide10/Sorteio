@@ -79,6 +79,23 @@
             margin-bottom: 10px; border: 1px solid red;
         }
 
+        /* HISTÓRICO DE PRÊMIOS (NOVO) */
+        #history-panel {
+            display: none;
+            background: #fff; color: #333;
+            padding: 20px; border-radius: 10px;
+            margin-top: 20px; border: 2px solid #66c0f4;
+            max-height: 300px; overflow-y: auto;
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 80%; max-width: 400px; z-index: 2000;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+        .history-item {
+            border-bottom: 1px solid #ddd;
+            padding: 10px; text-align: left;
+            font-size: 0.9em;
+        }
+
         /* RODAPÉ (CRÉDITOS) */
         footer {
             margin-top: 50px;
@@ -137,8 +154,17 @@
             <span class="credits-badge"><span id="user-credits">0</span> Chances</span>
         </div>
 
-        <div>
-            <button class="secondary" style="width: auto; padding: 5px 15px; font-size: 12px;" onclick="logout()">Sair</button>
+        <div style="margin-bottom: 20px;">
+            <!-- Botão NOVO: Meus Prêmios -->
+            <button onclick="toggleHistory()" style="width: auto; padding: 8px 20px; background: #4caf50; margin-right: 10px;">🎁 Meus Prêmios</button>
+            <button class="secondary" style="width: auto; padding: 8px 20px; font-size: 12px;" onclick="logout()">Sair</button>
+        </div>
+
+        <!-- LISTA DE PRÊMIOS (MODAL) -->
+        <div id="history-panel">
+            <h3 style="margin-top:0;">📜 Meu Histórico de Keys</h3>
+            <div id="history-list">Carregando...</div>
+            <button onclick="toggleHistory()" class="secondary" style="margin-top:10px; background:#f0f0f0;">Fechar</button>
         </div>
 
         <h1 style="margin-top: 20px;">Estoure para Ganhar!</h1>
@@ -151,7 +177,7 @@
         <div id="result-box">
             <h2>🎉 Parabéns!</h2>
             <div class="aviso-perigo">⚠️ TIRE PRINT OU ANOTE AGORA!</div>
-            <p>Essa key <b>NÃO</b> será enviada por e-mail e vai sumir se você fechar essa tela.</p>
+            <p>Essa key foi salva no botão "Meus Prêmios".</p>
             
             <div style="background: #eee; padding: 15px; border-radius: 5px; margin: 15px 0;">
                 <code id="key-display" style="font-size: 1.8em; color: #333; font-weight: bold; word-break: break-all;">...</code>
@@ -234,6 +260,7 @@
                 gameScreen.classList.add('active-screen');
                 document.getElementById('user-email-display').innerText = user.email;
 
+                // Garante registro no DB
                 const userRef = db.ref('users/' + user.uid);
                 userRef.once('value', (snapshot) => {
                     if (!snapshot.exists()) {
@@ -261,6 +288,7 @@
 
             try {
                 const userCred = await auth.signInWithEmailAndPassword(email, pass);
+                // O onAuthStateChanged cuida do resto
             } catch (error) {
                 if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
                     alert("E-mail ou senha incorretos.");
@@ -351,7 +379,7 @@
             loader.style.display = 'block';
 
             try {
-                // 1. Desconta Crédito (COBRANÇA)
+                // 1. Desconta Crédito
                 const userRef = db.ref('users/' + currentUser.uid + '/credits');
                 await userRef.transaction((current) => {
                     return (current || 0) - 1;
@@ -370,16 +398,22 @@
                 // 3. Tenta remover a Key
                 await db.ref('keys/' + randomId).remove();
 
-                // 4. Se chegou aqui, deu certo. Registra o Log.
                 const now = new Date();
-                const logData = {
+                
+                // 4.1 Salva no LOG GERAL (Admin)
+                await db.ref('logs').push({
                     email: currentUser.email,
                     key: winningKey,
                     data: now.toLocaleString('pt-BR')
-                };
-                await db.ref('logs').push(logData);
+                });
 
-                // Mostra Resultado
+                // 4.2 Salva no HISTÓRICO DO USUÁRIO (Novo)
+                await db.ref('users/' + currentUser.uid + '/history').push({
+                    key: winningKey,
+                    data: now.toLocaleString('pt-BR')
+                });
+
+                // 5. Mostra Resultado
                 document.getElementById('result-box').style.display = 'block';
                 document.getElementById('key-display').innerText = winningKey;
                 document.getElementById('data-geracao').innerText = now.toLocaleTimeString();
@@ -387,22 +421,53 @@
                 document.getElementById('balao-container').style.display = 'none';
 
             } catch (error) {
-                // --- REEMBOLSO BLINDADO ---
+                // REEMBOLSO AUTOMÁTICO
                 console.error(error);
                 
-                // Devolve +1 crédito SEM RECARREGAR A PÁGINA
                 const userRef = db.ref('users/' + currentUser.uid + '/credits');
                 await userRef.transaction((current) => {
                     return (current || 0) + 1;
                 });
 
-                alert("❌ ERRO DE SISTEMA: " + error.message + "\n\n✅ SEU CRÉDITO FOI DEVOLVIDO!\nVerifique suas chances.");
-                
-                // Destrava o balão pra tentar de novo
+                alert("Ocorreu um erro: " + error.message + "\n\n💰 SEU CRÉDITO FOI DEVOLVIDO!");
                 balaoIcon.classList.remove('disabled');
             }
 
             loader.style.display = 'none';
+        }
+
+        // --- FUNÇÃO NOVA: MOSTRAR HISTÓRICO ---
+        function toggleHistory() {
+            const panel = document.getElementById('history-panel');
+            if (panel.style.display === 'block') {
+                panel.style.display = 'none';
+                return;
+            }
+            panel.style.display = 'block';
+            const list = document.getElementById('history-list');
+            list.innerHTML = "Carregando...";
+
+            // Busca apenas na pasta deste usuário
+            db.ref('users/' + currentUser.uid + '/history').once('value', (snapshot) => {
+                const data = snapshot.val();
+                list.innerHTML = "";
+                
+                if (!data) {
+                    list.innerHTML = "<p style='text-align:center; color:#999;'>Você ainda não ganhou nada.</p>";
+                    return;
+                }
+
+                // Transforma em lista e inverte (mais novo primeiro)
+                const items = Object.values(data).reverse();
+                
+                items.forEach(item => {
+                    list.innerHTML += `
+                        <div class="history-item">
+                            <small style="color:#888;">${item.data}</small><br>
+                            <code style="font-size:1.2em; font-weight:bold; color:#333;">${item.key}</code>
+                        </div>`;
+                });
+            });
         }
 
         // --- ADMIN SECRETO ---
