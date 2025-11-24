@@ -2,19 +2,33 @@
 
 Este documento registra a evolução do projeto, desde a concepção inicial até a versão estável atual.
 
-[V9.0] - Versão Final (Current) 🚀
+[V11.0] - Segurança Definitiva (Current) 🛡️
+
+Hardcoded Admin: Retorno da constante de e-mail do administrador no código (const ADMIN_EMAIL) para garantir acesso imediato ao painel, sem depender de leitura de banco de dados na entrada.
+
+Bloqueio Total: Usuários sem e-mail verificado são desconectados automaticamente (Logout forçado) antes de visualizar a interface do jogo.
+
+Fix de Permissão: Ajuste na verificação de identidade para evitar falsos positivos no login.
+
+[V10.0] - Correção de Fluxo (O Porteiro) 🚦
+
+Estado de Carregamento: Adicionada variável de controle (podeJogar) para impedir que o balão seja clicável antes da validação completa do usuário.
+
+Loading Screen: A tela de jogo só é exibida após a confirmação total das permissões.
+
+[V9.0] - Histórico e UX 🚀
 
 Histórico Pessoal: Adicionado botão "Meus Prêmios" para o usuário consultar keys ganhas anteriormente.
 
 Reembolso Automático: Implementada lógica de segurança que devolve o crédito (chance) caso ocorra erro na entrega da key.
 
-Logs: O sistema agora grava o prêmio tanto no log geral do Admin quanto no histórico pessoal do usuário.
+Logs Duplos: O sistema agora grava o prêmio tanto no log geral do Admin quanto no histórico pessoal do usuário.
 
 [V8.0] - Segurança e UI 🛡️
 
 Painel Admin Oculto: Removido botão visível. O acesso agora é feito via "Easter Egg" (5 cliques no rodapé).
 
-Proteção de Código: Removidas credenciais de e-mail hardcoded no JavaScript.
+Proteção de Código: Removidas credenciais de e-mail hardcoded no JavaScript (temporariamente, revertido na V11 para estabilidade).
 
 Validação no Backend: A segurança de acesso agora confia 100% nas regras de banco de dados (Security Rules) do Firebase.
 
