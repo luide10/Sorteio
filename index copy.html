@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roleta Steam PRO</title>
+    <style>
+        /* ESTILOS GERAIS */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1b2838;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            text-align: center;
+        }
+
+        /* TELAS (Login vs Jogo) */
+        .screen { display: none; width: 100%; max-width: 500px; animation: fadeIn 0.5s; }
+        .active-screen { display: block; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* FORMULÁRIOS */
+        .auth-box {
+            background: rgba(0,0,0,0.3);
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        input {
+            width: 90%; padding: 12px; margin: 10px 0;
+            border-radius: 5px; border: none; font-size: 16px;
+        }
+        button {
+            background: #66c0f4; color: #fff; border: none;
+            padding: 12px 25px; border-radius: 5px; cursor: pointer;
+            font-size: 16px; font-weight: bold; width: 100%; margin-top: 10px;
+        }
+        button:hover { background: #419dc9; }
+        
+        button.secondary { 
+            background: transparent; 
+            border: 1px solid #66c0f4; 
+            color: #66c0f4; 
+        }
+        button.secondary:hover { background: rgba(102, 192, 244, 0.1); }
+
+        /* JOGO */
+        .user-info {
+            background: rgba(0,0,0,0.5);
+            padding: 10px; border-radius: 50px;
+            margin-bottom: 20px; display: inline-block;
+        }
+        .credits-badge {
+            background: #ffcc00; color: #000; padding: 5px 10px;
+            border-radius: 20px; font-weight: bold; margin-left: 10px;
+        }
+
+        .balao {
+            font-size: 120px; cursor: pointer; transition: transform 0.2s;
+            filter: drop-shadow(0 0 10px rgba(0,0,0,0.5)); user-select: none;
+        }
+        .balao:active { transform: scale(0.9); }
+        .disabled { filter: grayscale(100%); cursor: not-allowed; opacity: 0.5; pointer-events: none; }
+
+        #result-box {
+            display: none; background: #fff; color: #000; padding: 20px;
+            border-radius: 10px; margin-top: 20px; border: 4px solid #66c0f4;
+        }
+        
+        .aviso-perigo {
+            color: red; font-weight: bold; font-size: 1.1em;
+            background: #ffe6e6; padding: 5px; border-radius: 5px;
+            margin-bottom: 10px; border: 1px solid red;
+        }
+
+        /* RODAPÉ (CRÉDITOS) */
+        footer {
+            margin-top: 50px;
+            color: #555;
+            font-size: 0.8em;
+            cursor: text;
+            user-select: none; 
+        }
+
+        /* PAINEL ADMIN */
+        #admin-panel {
+            display: none; border-top: 2px solid #444; margin-top: 40px; padding-top: 20px;
+            background: rgba(0,0,0,0.95); position: fixed; bottom: 0; left: 0; right: 0;
+            height: 350px; overflow-y: scroll; padding: 20px; text-align: left;
+            z-index: 1000;
+        }
+        .log-item { 
+            font-size: 12px; border-bottom: 1px solid #333; padding: 8px; 
+            color: #ddd; font-family: monospace;
+        }
+
+        .loading-spinner {
+            border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%;
+            width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 20px auto;
+            display: none;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <!-- LOADING -->
+    <div id="loading" class="loading-spinner"></div>
+
+    <!-- TELA 1: LOGIN / CADASTRO -->
+    <div id="login-screen" class="screen active-screen">
+        <h1>🔐 Acesso Restrito</h1>
+        <div class="auth-box">
+            <h3 id="form-title">Login</h3>
+            <input type="email" id="email" placeholder="Seu E-mail">
+            <input type="password" id="password" placeholder="Sua Senha">
+            
+            <button onclick="fazerLogin()">ENTRAR</button>
+            <button onclick="criarConta()" class="secondary" style="margin-top: 15px;">Criar Nova Conta</button>
+            
+            <p style="font-size: 0.8em; margin-top: 15px; color: #aaa;">
+                <b>Atenção:</b> É obrigatório confirmar o e-mail para jogar.
+            </p>
+        </div>
+    </div>
+
+    <!-- TELA 2: O JOGO -->
+    <div id="game-screen" class="screen">
+        <div class="user-info">
+            <span id="user-email-display">usuario@email.com</span>
+            <span class="credits-badge"><span id="user-credits">0</span> Chances</span>
+        </div>
+
+        <div>
+            <button class="secondary" style="width: auto; padding: 5px 15px; font-size: 12px;" onclick="logout()">Sair</button>
+        </div>
+
+        <h1 style="margin-top: 20px;">Estoure para Ganhar!</h1>
+        
+        <div id="balao-container" onclick="playGame()">
+            <div id="balao-icon" class="balao disabled">🎈</div>
+            <p id="status-text" style="color: #ff5555">Carregando...</p>
+        </div>
+
+        <div id="result-box">
+            <h2>🎉 Parabéns!</h2>
+            <div class="aviso-perigo">⚠️ TIRE PRINT OU ANOTE AGORA!</div>
+            <p>Essa key <b>NÃO</b> será enviada por e-mail e vai sumir se você fechar essa tela.</p>
+            
+            <div style="background: #eee; padding: 15px; border-radius: 5px; margin: 15px 0;">
+                <code id="key-display" style="font-size: 1.8em; color: #333; font-weight: bold; word-break: break-all;">...</code>
+            </div>
+            
+            <small>Código único gerado em: <span id="data-geracao"></span></small>
+        </div>
+
+        <!-- RODAPÉ SECRETO (Clique 5x aqui) -->
+        <footer onclick="secretAdminTrigger()">
+            <p>Desenvolvido por Luide &copy; 2025</p>
+        </footer>
+    </div>
+
+    <!-- PAINEL ADMIN -->
+    <div id="admin-panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+            <h2 style="margin:0; color: orange;">🛠️ Painel Admin</h2>
+            <button style="width:auto; background:#444;" onclick="closeAdmin()">Fechar</button>
+        </div>
+
+        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 250px; background: #222; padding: 15px; border-radius: 5px; border: 1px solid #444;">
+                <h3 style="margin-top:0;">1. Estoque de Keys</h3>
+                <p>Keys Disponíveis: <b id="total-keys-db" style="font-size: 1.5em; color: #66c0f4;">0</b></p>
+                <input type="text" id="new-key-input" placeholder="Cole a Key (XXXX-XXXX-XXXX)">
+                <button onclick="addKeyToDB()" style="background: #4caf50;">Salvar Key no Banco</button>
+            </div>
+
+            <div style="flex: 1; min-width: 250px; background: #222; padding: 15px; border-radius: 5px; border: 1px solid #444;">
+                <h3 style="margin-top:0;">2. Dar Chances (Créditos)</h3>
+                <input type="text" id="target-email" placeholder="E-mail do usuário">
+                <input type="number" id="amount-credits" placeholder="Qtd Chances (ex: 5)">
+                <button onclick="giveCredits()" style="background: orange; color: black;">Adicionar Créditos</button>
+            </div>
+        </div>
+
+        <h3 style="border-bottom: 1px solid #444; padding-bottom: 10px; margin-top: 30px;">📜 Registro de Quem Pegou (Log)</h3>
+        <div id="logs-container" style="background: #000; height: 150px; overflow-y: auto; padding: 10px; border: 1px solid #333;">
+            <div style="color: #666; text-align: center; padding: 20px;">Clique em "Atualizar Logs" para ver.</div>
+        </div>
+        <button onclick="monitorLogs()" class="secondary" style="width: 100%; margin-top: 10px;">Atualizar Logs</button>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <script>
+        // CONFIGURAÇÕES
+        const firebaseConfig = {
+            apiKey: "AIzaSyCMUA_Og-8RoF_v3Dgi32obcCDy03u5biA",
+            authDomain: "sorteiogemini.firebaseapp.com",
+            databaseURL: "https://sorteiogemini-default-rtdb.firebaseio.com/",
+            projectId: "sorteiogemini",
+            storageBucket: "sorteiogemini.firebasestorage.app",
+            messagingSenderId: "649756499724",
+            appId: "1:649756499724:web:3c1fb49b6b9b3cc2193329"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.database();
+        
+        let currentUser = null;
+        let userCredits = 0;
+        let availableKeysCount = 0;
+
+        const loginScreen = document.getElementById('login-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const loader = document.getElementById('loading');
+        const balaoIcon = document.getElementById('balao-icon');
+        const statusText = document.getElementById('status-text');
+
+        // --- SISTEMA DE LOGIN ---
+        auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                currentUser = user;
+                loginScreen.classList.remove('active-screen');
+                gameScreen.classList.add('active-screen');
+                document.getElementById('user-email-display').innerText = user.email;
+
+                const userRef = db.ref('users/' + user.uid);
+                userRef.once('value', (snapshot) => {
+                    if (!snapshot.exists()) {
+                        userRef.set({ email: user.email, credits: 0 });
+                    }
+                });
+
+                monitoruserData(user.uid);
+                monitorGlobalKeys();
+            } else {
+                currentUser = null;
+                loginScreen.classList.add('active-screen');
+                gameScreen.classList.remove('active-screen');
+            }
+        });
+
+        // --- LOGIN ---
+        async function fazerLogin() {
+            const email = document.getElementById('email').value;
+            const pass = document.getElementById('password').value;
+
+            if(!email || !pass) return alert("Preencha e-mail e senha");
+
+            loader.style.display = 'block';
+
+            try {
+                const userCred = await auth.signInWithEmailAndPassword(email, pass);
+            } catch (error) {
+                if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+                    alert("E-mail ou senha incorretos.");
+                } else if (error.code === 'auth/invalid-email') {
+                    alert("E-mail inválido.");
+                } else if (error.code === 'auth/too-many-requests') {
+                    alert("Muitas tentativas. Aguarde um pouco.");
+                } else {
+                    alert("Erro ao entrar: " + error.message);
+                }
+            }
+            loader.style.display = 'none';
+        }
+
+        // --- CRIAR CONTA ---
+        async function criarConta() {
+            const email = document.getElementById('email').value;
+            const pass = document.getElementById('password').value;
+
+            if(!email || !pass) return alert("Preencha e-mail e senha.");
+            if(pass.length < 6) return alert("A senha precisa ter no mínimo 6 dígitos.");
+
+            loader.style.display = 'block';
+
+            try {
+                const userCred = await auth.createUserWithEmailAndPassword(email, pass);
+                await userCred.user.sendEmailVerification();
+
+                await db.ref('users/' + userCred.user.uid).set({
+                    email: email,
+                    credits: 0
+                });
+
+                await auth.signOut();
+                alert("✅ CONTA CRIADA!\n\nVerifique seu e-mail (" + email + ") e clique no link para ativar sua conta.");
+                
+            } catch (error) {
+                if (error.code === 'auth/email-already-in-use') {
+                    alert("Este e-mail já está cadastrado.");
+                } else if (error.code === 'auth/invalid-email') {
+                    alert("E-mail inválido.");
+                } else {
+                    alert("Erro ao criar conta: " + error.message);
+                }
+            }
+            loader.style.display = 'none';
+        }
+
+        function logout() {
+            auth.signOut();
+            window.location.reload();
+        }
+
+        // --- LÓGICA DO JOGO ---
+        function monitoruserData(uid) {
+            db.ref('users/' + uid + '/credits').on('value', (snapshot) => {
+                userCredits = snapshot.val() || 0;
+                document.getElementById('user-credits').innerText = userCredits;
+                updateGameState();
+            });
+        }
+
+        function monitorGlobalKeys() {
+            db.ref('keys').on('value', (snapshot) => {
+                availableKeysCount = snapshot.numChildren();
+                document.getElementById('total-keys-db').innerText = availableKeysCount;
+                updateGameState();
+            });
+        }
+
+        function updateGameState() {
+            if (userCredits > 0 && availableKeysCount > 0) {
+                balaoIcon.classList.remove('disabled');
+                statusText.innerText = "Clique para tentar a sorte!";
+                statusText.style.color = "#66c0f4";
+            } else {
+                balaoIcon.classList.add('disabled');
+                if (userCredits <= 0) statusText.innerText = "Sem chances (Peça ao Admin)";
+                else statusText.innerText = "Keys Esgotadas :(";
+                statusText.style.color = "#ff5555";
+            }
+        }
+
+        async function playGame() {
+            if (userCredits <= 0) return;
+
+            balaoIcon.classList.add('disabled');
+            loader.style.display = 'block';
+
+            try {
+                // 1. Desconta Crédito (COBRANÇA)
+                const userRef = db.ref('users/' + currentUser.uid + '/credits');
+                await userRef.transaction((current) => {
+                    return (current || 0) - 1;
+                });
+
+                // 2. Busca Keys
+                const snapshot = await db.ref('keys').once('value');
+                const keysData = snapshot.val();
+                
+                if (!keysData) throw new Error("Sem keys disponíveis.");
+
+                const keysIds = Object.keys(keysData);
+                const randomId = keysIds[Math.floor(Math.random() * keysIds.length)];
+                const winningKey = keysData[randomId].codigo;
+
+                // 3. Tenta remover a Key
+                await db.ref('keys/' + randomId).remove();
+
+                // 4. Se chegou aqui, deu certo. Registra o Log.
+                const now = new Date();
+                const logData = {
+                    email: currentUser.email,
+                    key: winningKey,
+                    data: now.toLocaleString('pt-BR')
+                };
+                await db.ref('logs').push(logData);
+
+                // Mostra Resultado
+                document.getElementById('result-box').style.display = 'block';
+                document.getElementById('key-display').innerText = winningKey;
+                document.getElementById('data-geracao').innerText = now.toLocaleTimeString();
+                balaoIcon.innerText = "💥";
+                document.getElementById('balao-container').style.display = 'none';
+
+            } catch (error) {
+                // --- REEMBOLSO BLINDADO ---
+                console.error(error);
+                
+                // Devolve +1 crédito SEM RECARREGAR A PÁGINA
+                const userRef = db.ref('users/' + currentUser.uid + '/credits');
+                await userRef.transaction((current) => {
+                    return (current || 0) + 1;
+                });
+
+                alert("❌ ERRO DE SISTEMA: " + error.message + "\n\n✅ SEU CRÉDITO FOI DEVOLVIDO!\nVerifique suas chances.");
+                
+                // Destrava o balão pra tentar de novo
+                balaoIcon.classList.remove('disabled');
+            }
+
+            loader.style.display = 'none';
+        }
+
+        // --- ADMIN SECRETO ---
+        let secretClicks = 0;
+        
+        async function secretAdminTrigger() {
+            secretClicks++;
+            if (secretClicks >= 5) {
+                loader.style.display = 'block';
+                
+                try {
+                    await db.ref('logs').limitToLast(1).once('value');
+                    alert("Bem Vindo Paizão! 👑😎");
+                    document.getElementById('admin-panel').style.display = 'block';
+                    monitorLogs();
+                    
+                } catch (error) {
+                    alert("⛔ ACESSO NEGADO!\nVocê não tem permissão de Administrador.");
+                }
+                
+                loader.style.display = 'none';
+                secretClicks = 0;
+            }
+        }
+
+        function closeAdmin() {
+            document.getElementById('admin-panel').style.display = 'none';
+        }
+
+        function addKeyToDB() {
+            const code = document.getElementById('new-key-input').value;
+            if(!code) return alert("Digite a key");
+            
+            db.ref('keys').push({ codigo: code })
+                .then(() => {
+                    alert("Key Salva!");
+                    document.getElementById('new-key-input').value = '';
+                })
+                .catch(err => {
+                    alert("⛔ Erro: Você não tem permissão de Admin.");
+                });
+        }
+
+        async function giveCredits() {
+            const emailTarget = document.getElementById('target-email').value;
+            const amount = parseInt(document.getElementById('amount-credits').value);
+            
+            if(!emailTarget || !amount) return alert("Preencha email e quantidade");
+
+            try {
+                const snapshot = await db.ref('users').orderByChild('email').equalTo(emailTarget).once('value');
+                
+                if (!snapshot.exists()) return alert("Usuário não encontrado.");
+
+                snapshot.forEach((childSnapshot) => {
+                    const uid = childSnapshot.key;
+                    const currentCredits = childSnapshot.val().credits || 0;
+                    db.ref('users/' + uid).update({ credits: currentCredits + amount })
+                        .then(() => alert(`✅ Adicionado ${amount} chances para ${emailTarget}`));
+                });
+
+            } catch (error) {
+                alert("⛔ ACESSO NEGADO!\nSeu usuário não tem permissão no banco de dados.");
+            }
+        }
+
+        function monitorLogs() {
+            const container = document.getElementById('logs-container');
+            container.innerHTML = "Carregando...";
+            
+            db.ref('logs').limitToLast(20).on('child_added', (snapshot) => {
+                if(container.innerHTML === "Carregando...") container.innerHTML = "";
+                
+                const log = snapshot.val();
+                const div = document.createElement('div');
+                div.className = 'log-item';
+                div.innerHTML = `<span style="color:#00ff00">[${log.data}]</span> <b style="color:orange">${log.email}</b> resgatou: <span style="color:#fff">${log.key}</span>`;
+                container.prepend(div);
+            }, (error) => {
+                container.innerHTML = "<span style='color:red'>Acesso Negado aos Logs.</span>";
+            });
+        }
+    </script>
+</body>
+</html>
