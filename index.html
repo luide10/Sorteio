@@ -79,7 +79,7 @@
             margin-bottom: 10px; border: 1px solid red;
         }
 
-        /* HISTÓRICO DE PRÊMIOS (NOVO) */
+        /* HISTÓRICO DE PRÊMIOS */
         #history-panel {
             display: none;
             background: #fff; color: #333;
@@ -96,7 +96,7 @@
             font-size: 0.9em;
         }
 
-        /* RODAPÉ (CRÉDITOS) */
+        /* RODAPÉ */
         footer {
             margin-top: 50px;
             color: #555;
@@ -127,7 +127,6 @@
 </head>
 <body>
 
-    <!-- LOADING -->
     <div id="loading" class="loading-spinner"></div>
 
     <!-- TELA 1: LOGIN / CADASTRO -->
@@ -155,12 +154,10 @@
         </div>
 
         <div style="margin-bottom: 20px;">
-            <!-- Botão NOVO: Meus Prêmios -->
             <button onclick="toggleHistory()" style="width: auto; padding: 8px 20px; background: #4caf50; margin-right: 10px;">🎁 Meus Prêmios</button>
             <button class="secondary" style="width: auto; padding: 8px 20px; font-size: 12px;" onclick="logout()">Sair</button>
         </div>
 
-        <!-- LISTA DE PRÊMIOS (MODAL) -->
         <div id="history-panel">
             <h3 style="margin-top:0;">📜 Meu Histórico de Keys</h3>
             <div id="history-list">Carregando...</div>
@@ -186,7 +183,6 @@
             <small>Código único gerado em: <span id="data-geracao"></span></small>
         </div>
 
-        <!-- RODAPÉ SECRETO (Clique 5x aqui) -->
         <footer onclick="secretAdminTrigger()">
             <p>Desenvolvido por Luide &copy; 2025</p>
         </footer>
@@ -227,7 +223,6 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <script>
-        // CONFIGURAÇÕES
         const firebaseConfig = {
             apiKey: "AIzaSyCMUA_Og-8RoF_v3Dgi32obcCDy03u5biA",
             authDomain: "sorteiogemini.firebaseapp.com",
@@ -238,6 +233,9 @@
             appId: "1:649756499724:web:3c1fb49b6b9b3cc2193329"
         };
 
+        // E-MAIL DO CHEFE ATUALIZADO (Porteiro do Frontend)
+        const ADMIN_EMAIL = "luidecarx@gmail.com"; 
+
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.database();
@@ -245,6 +243,7 @@
         let currentUser = null;
         let userCredits = 0;
         let availableKeysCount = 0;
+        let podeJogar = false;
 
         const loginScreen = document.getElementById('login-screen');
         const gameScreen = document.getElementById('game-screen');
@@ -252,89 +251,87 @@
         const balaoIcon = document.getElementById('balao-icon');
         const statusText = document.getElementById('status-text');
 
-        // --- SISTEMA DE LOGIN ---
+        // --- SISTEMA DE LOGIN BLINDADO 2.0 ---
         auth.onAuthStateChanged(async (user) => {
             if (user) {
-                currentUser = user;
                 loginScreen.classList.remove('active-screen');
-                gameScreen.classList.add('active-screen');
-                document.getElementById('user-email-display').innerText = user.email;
+                loader.style.display = 'block';
 
-                // Garante registro no DB
-                const userRef = db.ref('users/' + user.uid);
-                userRef.once('value', (snapshot) => {
-                    if (!snapshot.exists()) {
-                        userRef.set({ email: user.email, credits: 0 });
-                    }
-                });
+                await user.reload().catch(e => console.log("Erro reload:", e));
 
-                monitoruserData(user.uid);
-                monitorGlobalKeys();
+                const isAdmin = (user.email === ADMIN_EMAIL);
+                const isVerified = user.emailVerified;
+
+                if (isAdmin) {
+                    console.log("👑 Admin detectado. Passagem livre.");
+                    permitirEntrada(user);
+                } else if (isVerified) {
+                    console.log("✅ Usuário verificado. Entrada liberada.");
+                    permitirEntrada(user);
+                } else {
+                    console.log("🚫 Não verificado. Bloqueando...");
+                    await auth.signOut();
+                    loader.style.display = 'none';
+                    loginScreen.classList.add('active-screen');
+                    alert("🔒 ACESSO BLOQUEADO!\n\nVocê PRECISA confirmar seu e-mail antes de entrar.\nVerifique sua caixa de entrada (ou spam).");
+                }
             } else {
                 currentUser = null;
-                loginScreen.classList.add('active-screen');
+                podeJogar = false;
                 gameScreen.classList.remove('active-screen');
+                loginScreen.classList.add('active-screen');
+                loader.style.display = 'none';
             }
         });
 
-        // --- LOGIN ---
+        function permitirEntrada(user) {
+            currentUser = user;
+            podeJogar = true;
+            loader.style.display = 'none';
+            gameScreen.classList.add('active-screen');
+            document.getElementById('user-email-display').innerText = user.email;
+
+            const userRef = db.ref('users/' + user.uid);
+            userRef.once('value', (snapshot) => {
+                if (!snapshot.exists()) {
+                    userRef.set({ email: user.email, credits: 0 });
+                }
+            });
+
+            monitoruserData(user.uid);
+            monitorGlobalKeys();
+        }
+
         async function fazerLogin() {
             const email = document.getElementById('email').value;
             const pass = document.getElementById('password').value;
-
             if(!email || !pass) return alert("Preencha e-mail e senha");
-
             loader.style.display = 'block';
-
             try {
-                const userCred = await auth.signInWithEmailAndPassword(email, pass);
-                // O onAuthStateChanged cuida do resto
+                await auth.signInWithEmailAndPassword(email, pass);
             } catch (error) {
-                if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-                    alert("E-mail ou senha incorretos.");
-                } else if (error.code === 'auth/invalid-email') {
-                    alert("E-mail inválido.");
-                } else if (error.code === 'auth/too-many-requests') {
-                    alert("Muitas tentativas. Aguarde um pouco.");
-                } else {
-                    alert("Erro ao entrar: " + error.message);
-                }
+                loader.style.display = 'none';
+                alert("Erro ao entrar: " + error.message);
             }
-            loader.style.display = 'none';
         }
 
-        // --- CRIAR CONTA ---
         async function criarConta() {
             const email = document.getElementById('email').value;
             const pass = document.getElementById('password').value;
-
             if(!email || !pass) return alert("Preencha e-mail e senha.");
             if(pass.length < 6) return alert("A senha precisa ter no mínimo 6 dígitos.");
-
             loader.style.display = 'block';
-
             try {
                 const userCred = await auth.createUserWithEmailAndPassword(email, pass);
                 await userCred.user.sendEmailVerification();
-
-                await db.ref('users/' + userCred.user.uid).set({
-                    email: email,
-                    credits: 0
-                });
-
+                await db.ref('users/' + userCred.user.uid).set({ email: email, credits: 0 });
                 await auth.signOut();
-                alert("✅ CONTA CRIADA!\n\nVerifique seu e-mail (" + email + ") e clique no link para ativar sua conta.");
-                
+                loader.style.display = 'none';
+                alert("✅ CONTA CRIADA!\n\nUm link de verificação foi enviado para o seu e-mail.\nClique nele antes de entrar.");
             } catch (error) {
-                if (error.code === 'auth/email-already-in-use') {
-                    alert("Este e-mail já está cadastrado.");
-                } else if (error.code === 'auth/invalid-email') {
-                    alert("E-mail inválido.");
-                } else {
-                    alert("Erro ao criar conta: " + error.message);
-                }
+                loader.style.display = 'none';
+                alert("Erro ao criar conta: " + error.message);
             }
-            loader.style.display = 'none';
         }
 
         function logout() {
@@ -342,7 +339,6 @@
             window.location.reload();
         }
 
-        // --- LÓGICA DO JOGO ---
         function monitoruserData(uid) {
             db.ref('users/' + uid + '/credits').on('value', (snapshot) => {
                 userCredits = snapshot.val() || 0;
@@ -373,19 +369,16 @@
         }
 
         async function playGame() {
+            if (!podeJogar) return;
             if (userCredits <= 0) return;
 
             balaoIcon.classList.add('disabled');
             loader.style.display = 'block';
 
             try {
-                // 1. Desconta Crédito
                 const userRef = db.ref('users/' + currentUser.uid + '/credits');
-                await userRef.transaction((current) => {
-                    return (current || 0) - 1;
-                });
+                await userRef.transaction((current) => { return (current || 0) - 1; });
 
-                // 2. Busca Keys
                 const snapshot = await db.ref('keys').once('value');
                 const keysData = snapshot.val();
                 
@@ -395,25 +388,21 @@
                 const randomId = keysIds[Math.floor(Math.random() * keysIds.length)];
                 const winningKey = keysData[randomId].codigo;
 
-                // 3. Tenta remover a Key
                 await db.ref('keys/' + randomId).remove();
 
                 const now = new Date();
                 
-                // 4.1 Salva no LOG GERAL (Admin)
                 await db.ref('logs').push({
                     email: currentUser.email,
                     key: winningKey,
                     data: now.toLocaleString('pt-BR')
                 });
 
-                // 4.2 Salva no HISTÓRICO DO USUÁRIO (Novo)
                 await db.ref('users/' + currentUser.uid + '/history').push({
                     key: winningKey,
                     data: now.toLocaleString('pt-BR')
                 });
 
-                // 5. Mostra Resultado
                 document.getElementById('result-box').style.display = 'block';
                 document.getElementById('key-display').innerText = winningKey;
                 document.getElementById('data-geracao').innerText = now.toLocaleTimeString();
@@ -421,22 +410,15 @@
                 document.getElementById('balao-container').style.display = 'none';
 
             } catch (error) {
-                // REEMBOLSO AUTOMÁTICO
                 console.error(error);
-                
                 const userRef = db.ref('users/' + currentUser.uid + '/credits');
-                await userRef.transaction((current) => {
-                    return (current || 0) + 1;
-                });
-
-                alert("Ocorreu um erro: " + error.message + "\n\n💰 SEU CRÉDITO FOI DEVOLVIDO!");
+                await userRef.transaction((current) => { return (current || 0) + 1; });
+                alert("❌ ERRO: " + error.message + "\n\n✅ SEU CRÉDITO FOI DEVOLVIDO!");
                 balaoIcon.classList.remove('disabled');
             }
-
             loader.style.display = 'none';
         }
 
-        // --- FUNÇÃO NOVA: MOSTRAR HISTÓRICO ---
         function toggleHistory() {
             const panel = document.getElementById('history-panel');
             if (panel.style.display === 'block') {
@@ -447,108 +429,72 @@
             const list = document.getElementById('history-list');
             list.innerHTML = "Carregando...";
 
-            // Busca apenas na pasta deste usuário
             db.ref('users/' + currentUser.uid + '/history').once('value', (snapshot) => {
                 const data = snapshot.val();
                 list.innerHTML = "";
-                
                 if (!data) {
                     list.innerHTML = "<p style='text-align:center; color:#999;'>Você ainda não ganhou nada.</p>";
                     return;
                 }
-
-                // Transforma em lista e inverte (mais novo primeiro)
                 const items = Object.values(data).reverse();
-                
                 items.forEach(item => {
-                    list.innerHTML += `
-                        <div class="history-item">
-                            <small style="color:#888;">${item.data}</small><br>
-                            <code style="font-size:1.2em; font-weight:bold; color:#333;">${item.key}</code>
-                        </div>`;
+                    list.innerHTML += `<div class="history-item"><small style="color:#888;">${item.data}</small><br><code style="font-size:1.2em; font-weight:bold; color:#333;">${item.key}</code></div>`;
                 });
             });
         }
 
-        // --- ADMIN SECRETO ---
         let secretClicks = 0;
-        
         async function secretAdminTrigger() {
             secretClicks++;
             if (secretClicks >= 5) {
-                loader.style.display = 'block';
-                
-                try {
-                    await db.ref('logs').limitToLast(1).once('value');
+                if (currentUser && currentUser.email === ADMIN_EMAIL) {
                     alert("Bem Vindo Paizão! 👑😎");
                     document.getElementById('admin-panel').style.display = 'block';
                     monitorLogs();
-                    
-                } catch (error) {
-                    alert("⛔ ACESSO NEGADO!\nVocê não tem permissão de Administrador.");
+                } else {
+                    alert("⛔ OPA! Você não é o Admin.");
                 }
-                
-                loader.style.display = 'none';
                 secretClicks = 0;
             }
         }
 
-        function closeAdmin() {
-            document.getElementById('admin-panel').style.display = 'none';
-        }
+        function closeAdmin() { document.getElementById('admin-panel').style.display = 'none'; }
 
         function addKeyToDB() {
             const code = document.getElementById('new-key-input').value;
             if(!code) return alert("Digite a key");
-            
             db.ref('keys').push({ codigo: code })
-                .then(() => {
-                    alert("Key Salva!");
-                    document.getElementById('new-key-input').value = '';
-                })
-                .catch(err => {
-                    alert("⛔ Erro: Você não tem permissão de Admin.");
-                });
+                .then(() => { alert("Key Salva!"); document.getElementById('new-key-input').value = ''; })
+                .catch(err => { alert("⛔ Erro de Permissão."); });
         }
 
         async function giveCredits() {
             const emailTarget = document.getElementById('target-email').value;
             const amount = parseInt(document.getElementById('amount-credits').value);
-            
-            if(!emailTarget || !amount) return alert("Preencha email e quantidade");
-
+            if(!emailTarget || !amount) return alert("Preencha tudo");
             try {
                 const snapshot = await db.ref('users').orderByChild('email').equalTo(emailTarget).once('value');
-                
                 if (!snapshot.exists()) return alert("Usuário não encontrado.");
-
                 snapshot.forEach((childSnapshot) => {
                     const uid = childSnapshot.key;
                     const currentCredits = childSnapshot.val().credits || 0;
                     db.ref('users/' + uid).update({ credits: currentCredits + amount })
-                        .then(() => alert(`✅ Adicionado ${amount} chances para ${emailTarget}`));
+                        .then(() => alert(`✅ +${amount} chances para ${emailTarget}`));
                 });
-
-            } catch (error) {
-                alert("⛔ ACESSO NEGADO!\nSeu usuário não tem permissão no banco de dados.");
-            }
+            } catch (error) { alert("⛔ Erro de Permissão."); }
         }
 
         function monitorLogs() {
             const container = document.getElementById('logs-container');
             container.innerHTML = "Carregando...";
-            
             db.ref('logs').limitToLast(20).on('child_added', (snapshot) => {
                 if(container.innerHTML === "Carregando...") container.innerHTML = "";
-                
                 const log = snapshot.val();
                 const div = document.createElement('div');
                 div.className = 'log-item';
-                div.innerHTML = `<span style="color:#00ff00">[${log.data}]</span> <b style="color:orange">${log.email}</b> resgatou: <span style="color:#fff">${log.key}</span>`;
+                div.innerHTML = `<span style="color:#00ff00">[${log.data}]</span> <b style="color:orange">${log.email}</b>: <span style="color:#fff">${log.key}</span>`;
                 container.prepend(div);
-            }, (error) => {
-                container.innerHTML = "<span style='color:red'>Acesso Negado aos Logs.</span>";
-            });
+            }, (error) => { container.innerHTML = "<span style='color:red'>Acesso Negado.</span>"; });
         }
     </script>
 </body>
